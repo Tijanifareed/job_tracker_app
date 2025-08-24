@@ -1,3 +1,4 @@
+import os
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -5,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/applications/login-app")
 
-SECRET_KEY = "4JlEf0yb4W9Tm-lTxstzSCzTYVM1P_BwKPmCl01cl-s"
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
