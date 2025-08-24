@@ -8,3 +8,4 @@ app.include_router(applications.router)
 @app.get("/")
 def root():
     return {"message": "Welcome to Job Tracker API 🚀"}
+
