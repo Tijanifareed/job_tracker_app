@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
-from app.schemas import UserCreate
+from app.schemas import UserCreate, UserLogin
 from passlib.hash import bcrypt
+from app.utils import create_access_token, get_current_user
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -28,7 +29,7 @@ def create_account(user: UserCreate, db: Session = Depends(get_db)):
     db_user = models.User(
         username=user.username,
         email=user.email,
-        password_hash=hashed_password        
+        password_hash=hashed_password
     )
     
     db.add(db_user)
@@ -42,4 +43,15 @@ def create_account(user: UserCreate, db: Session = Depends(get_db)):
         }
     
     
-    
+@router.post("/login-app")
+def login_app(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if not db_user or not bcrypt.verify(user.password, db_user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    access_token = create_access_token(data={"sub": db_user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/auth/me")
+def return_me(current_user: str = Depends(get_current_user)):
+    return {"message": f"Hello, {current_user}. You are authenticated!"}
