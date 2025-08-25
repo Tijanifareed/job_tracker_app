@@ -116,3 +116,10 @@ class InterviewPrep(Base):
     # Many-to-one
     application = relationship("Application", back_populates="interview_preps")    
     
+    
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    code = Column(String(10), nullable=False)
+    expires_at = Column(DateTime, default=lambda: datetime.datetime.utcnow() + datetime.timedelta(minutes=10))    

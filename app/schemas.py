@@ -19,4 +19,8 @@ class AddApplication(BaseModel):
      
      
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr     
+    email: EmailStr
+    
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str   
