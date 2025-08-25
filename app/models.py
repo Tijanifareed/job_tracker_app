@@ -80,6 +80,7 @@ class Resume(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     file_url = Column(String(255), nullable=False)
+    public_id = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)    
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

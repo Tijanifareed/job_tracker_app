@@ -6,6 +6,12 @@ from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
+import cloudinary
+import cloudinary.uploader
+from sqlalchemy.orm import Session
+
+
+from app import database, models
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/applications/login-app")
 
@@ -13,22 +19,21 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
-     to_encode = data.copy()
-     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-     to_encode.update({"exp": expire})
-     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
      try:
           payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
           email: str = payload.get("sub")
-          if email is None:
-               raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, 
-                    detail="Could not validate credentials",
-               )
-          return email
+          user = db.query(models.User).filter(models.User.email == email).first()
+          if not user:
+               raise HTTPException(status_code=401, detail="Invalid credentials")
+          return user
      
      except JWTError:
          raise HTTPException(
@@ -36,6 +41,17 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
               detail="Could not validate credentials",
            )   
          
+    
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+     to_encode = data.copy()
+     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+     to_encode.update({"exp": expire})
+     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+
 def genarate_reset_token():
      return str(random.randint(100000, 999999))
 
@@ -54,3 +70,9 @@ def send_mail(subject, body, to_email, ):
           server.starttls()
           server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
           server.sendmail(os.getenv("EMAIL_USER"), to_email, msg.as_string())    
+          
+cloudinary.config(
+     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+     api_key=os.getenv("CLOUDINARY_API_KEY"),
+     api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)          

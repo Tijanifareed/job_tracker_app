@@ -3,9 +3,11 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
-from app.schemas import ForgotPasswordRequest, ResetPasswordRequest, UserCreate, UserLogin
+from app.schemas import AddResumeRequest, ForgotPasswordRequest, ResetPasswordRequest, UserCreate, UserLogin
 from passlib.hash import bcrypt
 from app.utils import create_access_token, genarate_reset_token, get_current_user, send_mail
+import cloudinary.uploader
+from app import config
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -130,3 +132,79 @@ def cleanup_expired_reset_codes(db: Session):
         models.PasswordReset.expires_at < datetime.utcnow()
     ).delete()
     db.commit()
+    
+    
+@router.post("/add/resume")
+def upload_resume(
+    resume_data: AddResumeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    existing_resumes = db.query(models.Resume).filter(models.Resume.user_id == current_user.id).count()
+
+    if existing_resumes >= 3:
+        try:
+            cloudinary.uploader.destroy(resume_data.public_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to cleanup Cloudinary file: {str(e)}"
+            )
+        
+        raise HTTPException(
+            status_code=400,
+            detail="You can only upload a maximum of 3 resumes."
+        )
+
+    # Create new resume entry
+    new_resume = models.Resume(
+        name=resume_data.title,
+        file_url=resume_data.file_url,
+        public_id=resume_data.public_id,
+        user_id=current_user.id
+    )
+
+    db.add(new_resume)
+    db.commit()
+    db.refresh(new_resume)
+
+    return {
+        "message": "Resume uploaded successfully.",
+        "resume": {
+            "id": new_resume.id,
+            "name": new_resume.name,
+            "file_url": new_resume.file_url
+        }
+    }
+
+
+@router.delete("/delete-resume/{resume_id}")
+def delete_resume(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Delete a resume (and also remove it from Cloudinary).
+    """
+    resume = db.query(models.Resume).filter(
+        models.Resume.id == resume_id,
+        models.Resume.user_id == current_user.id
+    ).first()
+
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    # Delete from Cloudinary
+    try:
+        cloudinary.uploader.destroy(resume.public_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary delete failed: {str(e)}")
+
+    # Delete from DB
+    db.delete(resume)
+    db.commit()
+
+    return {"message": "Resume deleted successfully"}
+
+

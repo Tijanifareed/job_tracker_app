@@ -23,4 +23,9 @@ class ForgotPasswordRequest(BaseModel):
     
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    new_password: str   
+    new_password: str  
+    
+class AddResumeRequest(BaseModel):
+    title: str
+    file_url: str
+    public_id: str     
