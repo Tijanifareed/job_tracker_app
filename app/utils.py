@@ -1,4 +1,7 @@
+from email.mime.text import MIMEText
 import os
+import random
+import smtplib
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -32,3 +35,22 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
               status_code=status.HTTP_401_UNAUTHORIZED, 
               detail="Could not validate credentials",
            )   
+         
+def genarate_reset_token():
+     return str(random.randint(100000, 999999))
+
+
+def send_mail(subject, body, to_email, ):
+     msg = MIMEText(body)
+     msg['Subject'] = subject
+     msg['From'] = os.getenv("EMAIL_USER")
+     msg['To'] = to_email
+     
+     # Gmail SMTP server 
+     smtp_server = "smtp.gmail.com"
+     smtp_port = 587
+     
+     with smtplib.SMTP(smtp_server, smtp_port) as server:
+          server.starttls()
+          server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
+          server.sendmail(os.getenv("EMAIL_USER"), to_email, msg.as_string())    
