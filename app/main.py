@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from app.routers import applications
+from app.routers import applications, auth, resume
 from app.database import SessionLocal
-from app.routers.applications import cleanup_expired_reset_codes
+from app.routers.auth import cleanup_expired_reset_codes
 from apscheduler.schedulers.background import BackgroundScheduler
 
 def scheduled_cleanup():
@@ -15,6 +15,8 @@ scheduler.start()
 
 app = FastAPI(title="Job Tracker API")
 app.include_router(applications.router)
+app.include_router(resume.router)
+app.include_router(auth.router)
 
 @app.get("/")
 def root():

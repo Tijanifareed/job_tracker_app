@@ -71,8 +71,3 @@ def send_mail(subject, body, to_email, ):
           server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
           server.sendmail(os.getenv("EMAIL_USER"), to_email, msg.as_string())    
           
-cloudinary.config(
-     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-     api_key=os.getenv("CLOUDINARY_API_KEY"),
-     api_secret=os.getenv("CLOUDINARY_API_SECRET")
-)          

@@ -1,13 +1,9 @@
-from datetime import datetime, timedelta
-import os
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
-from app.schemas import AddResumeRequest, ForgotPasswordRequest, ResetPasswordRequest, UserCreate, UserLogin
-from passlib.hash import bcrypt
-from app.utils import create_access_token, genarate_reset_token, get_current_user, send_mail
-import cloudinary.uploader
-from app import config
+from app.schemas import AddApplicationRequest, UpdateApplicationRequest
+from app.utils import get_current_user
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -24,187 +20,97 @@ def list_applications(db: Session = Depends(get_db)):
     return db.query(models.Application).all()
 
 
-
-@router.post("/auth/create-account")
-def create_account(user: UserCreate, db: Session = Depends(get_db)):
-    if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = bcrypt.hash(user.password)
-    db_user = models.User(
-        username=user.username,
-        email=user.email,
-        password_hash=hashed_password
-    )
-    
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return {
-        "message": "User created successfully",
-        "data":{
-            "user_id": db_user.id,
-            "username": db_user.username,
-            "email": db_user.email
-        }
-        }
     
     
-@router.post("/auth/login-app")
-def login_app(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if not db_user or not bcrypt.verify(user.password, db_user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    access_token = create_access_token(data={"sub": db_user.email})
-    return {
-        "data":{
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
-       }
-
-
-@router.get("/auth/me")
-def return_me(current_user: str = Depends(get_current_user)):
-    return {"message": f"Hello, {current_user}. You are authenticated!"}
-
-
-reset_code_cache = {}
-@router.post("/auth/forgot-password")
-def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == request.email).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Email not Registered")
-    code = genarate_reset_token()
-    reset_entry = models.PasswordReset(
-        user_id=db_user.id,
-        code=code,
-        expires_at=datetime.utcnow() + timedelta(minutes=10)
-    )
-    db.add(reset_entry)
-    db.commit()
-    send_mail(
-        "Password Reset Code",
-        f"Your password reset code is: {code}",
-        request.email,
-        
-    )
-    return {
-        "message": "Reset code sent to your email",
-        "code": code  # For testing purposes only; remove in production
-        }
-    
-
-@router.post("/auth/verify-reset-code")
-def verify_reset_code(token: str, email: str, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == email).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Email not Registered")
-    reset_entry = db.query(models.PasswordReset).filter(
-        models.PasswordReset.user_id == db_user.id,
-        models.PasswordReset.code == token,
-        models.PasswordReset.expires_at > datetime.utcnow()
-    ).first()
-    if not reset_entry:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
-    # Delete The reset code after successful verification
-    db.delete(reset_entry)
-    db.commit()
-    return {"message": "Reset code verified successfully. You can now reset your password."}
-
-
-@router.post("/auth/reset-password")
-def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == request.email).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Email not Registered")
-    hashed_password = bcrypt.hash(request.new_password)
-    db_user.password_hash = hashed_password
-    db.commit()
-    db.query(models.PasswordReset).filter(
-        models.PasswordReset.user_id == db_user.id
-    ).delete()
-    db.commit()
-    return {"message": "Password reset successfully"}
-
-
-def cleanup_expired_reset_codes(db: Session):
-    db.query(models.PasswordReset).filter(
-        models.PasswordReset.expires_at < datetime.utcnow()
-    ).delete()
-    db.commit()
-    
-    
-@router.post("/add/resume")
-def upload_resume(
-    resume_data: AddResumeRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+@router.post("/add-new-application")
+def add_new_application(
+  application_data: AddApplicationRequest,  
+  db: Session = Depends(get_db),
+  current_user: models.User = Depends(get_current_user)
 ):
-    existing_resumes = db.query(models.Resume).filter(models.Resume.user_id == current_user.id).count()
-
-    if existing_resumes >= 3:
-        try:
-            cloudinary.uploader.destroy(resume_data.public_id)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to cleanup Cloudinary file: {str(e)}"
-            )
-        
-        raise HTTPException(
-            status_code=400,
-            detail="You can only upload a maximum of 3 resumes."
-        )
-
-    # Create new resume entry
-    new_resume = models.Resume(
-        name=resume_data.title,
-        file_url=resume_data.file_url,
-        public_id=resume_data.public_id,
+    new_application = models.Application(
+        job_title=application_data.job_title,
+        company=application_data.company,
+        status=application_data.status,
+        applied_date=application_data.applied_date or datetime.utcnow(),
+        notes=application_data.notes,
+        job_description=application_data.job_description,
+        job_link=application_data.job_link,
         user_id=current_user.id
     )
-
-    db.add(new_resume)
+    db.add(new_application)
     db.commit()
-    db.refresh(new_resume)
-
+    db.refresh(new_application)
     return {
-        "message": "Resume uploaded successfully.",
-        "resume": {
-            "id": new_resume.id,
-            "name": new_resume.name,
-            "file_url": new_resume.file_url
-        }
+        "message": "Application added successfully",
+        "application": new_application
     }
+    
+@router.get("/my-applications")
+def list_user_applications(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    applications = db.query(models.Application).filter(models.Application.user_id == current_user.id).all()
+    if not applications:
+        return {"message": "You have no applications."}
+    return {"applications": applications}
 
+@router.get("/my-applications/{application_id}")
+def get_application_details(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    application = db.query(models.Application).filter(
+        models.Application.id == application_id,
+        models.Application.user_id == current_user.id
+    ).first()
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    return {"application": application}
 
-@router.delete("/delete-resume/{resume_id}")
-def delete_resume(
-    resume_id: int,
+@router.put("/my-applications/{application_id}",)
+def update_application(
+    application_id: int,
+    application_data: UpdateApplicationRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """
-    Delete a resume (and also remove it from Cloudinary).
-    """
-    resume = db.query(models.Resume).filter(
-        models.Resume.id == resume_id,
-        models.Resume.user_id == current_user.id
-    ).first()
-
-    if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found")
-
-    # Delete from Cloudinary
-    try:
-        cloudinary.uploader.destroy(resume.public_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cloudinary delete failed: {str(e)}")
-
-    # Delete from DB
-    db.delete(resume)
+    application = db.query(models.Application).filter(models.Application.id == application_id, models.Application.user_id == current_user.id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="No Application to update")
+    application.job_title = application_data.job_title or application.job_title
+    application.company = application_data.company or application.company
+    application.status = application_data.status or application.status
+    application.applied_date = application_data.applied_date or application.applied_date
+    application.notes = application_data.notes or application.notes
+    application.job_description = application_data.job_description or application.job_description
+    application.job_link = application_data.job_link or application.job_link
     db.commit()
+    db.refresh(application)
+    return {
+        "message": "Application updated successfully",
+        "application": application
+    }
 
-    return {"message": "Resume deleted successfully"}
-
-
+@router.delete("/my-applications/{application_id}")
+def delete_application(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    application = db.query(models.Application).filter(
+        models.Application.id == application_id,
+        models.Application.user_id == current_user.id
+    ).first()
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    db.delete(application)
+    db.commit()
+    
+    return {"message": "Application deleted successfully"}

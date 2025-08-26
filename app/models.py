@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Enum
 from sqlalchemy.orm import relationship
-
 from app.database import Base
 import datetime
+from enum import Enum as PyEnum
+
+
 
 
 
@@ -21,6 +23,11 @@ class User(Base):
     resumes = relationship("Resume", back_populates="user", cascade="all, delete-orphan")
 
     
+class ApplicationStatus(PyEnum):
+    applied = "Applied"
+    interview = "Interview"
+    offer = "Offer"
+    rejected = "Rejected"    
 
 
 class Application(Base):
@@ -30,7 +37,9 @@ class Application(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     job_title = Column(String(255), index=True, nullable=False)
     company = Column(String(255), nullable=False)
-    status = Column(String(50), default="Applied")
+    status = Column(Enum(ApplicationStatus, name="applicationstatus"),
+                                         default=ApplicationStatus.applied,
+                                         nullable=False)
     applied_date = Column(DateTime, default=datetime.datetime.utcnow)
     notes = Column(String, nullable=True)
     job_description = Column(String, nullable=True)
@@ -101,7 +110,7 @@ class Notification(Base):
     scheduled_date = Column(DateTime, nullable=False)
     is_sent = Column(Boolean, default=False)
     
-    # Many-to-one
+    # Many-to-oneJ
     user = relationship("User", back_populates="notifications")
     application = relationship("Application", back_populates="notifications")
     
