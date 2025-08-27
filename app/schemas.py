@@ -4,6 +4,8 @@ from typing import Optional
 
 from sqlalchemy import Enum
 
+from app.timezones import TimezoneEnum
+
 class UserCreate(BaseModel):
      username: str
      email: EmailStr
@@ -40,6 +42,9 @@ class UpdateApplicationRequest(BaseModel):
     
 
      
+class InterviewDateRequest(BaseModel):
+    interview_date: str  
+    timezone: str      
      
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
@@ -52,3 +57,6 @@ class AddResumeRequest(BaseModel):
     title: str
     file_url: str
     public_id: str     
+    
+class TimeZoneRequest(BaseModel):
+    timezone: str = TimezoneEnum.UTC    

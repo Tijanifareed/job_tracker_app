@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from app import database
-from app.schemas import ForgotPasswordRequest
+from app.schemas import ForgotPasswordRequest, TimeZoneRequest
+from app.timezones import TimezoneEnum
 from app.utils import get_current_user, send_mail
 from datetime import datetime, timedelta
 import os
@@ -122,6 +123,21 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
     return {"message": "Password reset successfully"}
 
+
+@router.post("/add-timezone")
+def add_timezone(timezone_request: TimeZoneRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        tz_value = TimezoneEnum[timezone_request.timezone].value
+    except KeyError:
+        raise HTTPException(status_code=400, detail="Invalid timezone provided")
+    current_user.timezone = tz_value
+    db.commit()
+   
+    return {
+        "message": "Timezone added successfully",
+        "timezone": timezone_request.timezone
+    }
+    
 
 def cleanup_expired_reset_codes(db: Session):
     db.query(models.PasswordReset).filter(

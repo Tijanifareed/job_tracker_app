@@ -4,6 +4,8 @@ from app.database import Base
 import datetime
 from enum import Enum as PyEnum
 
+from app.timezones import TimezoneEnum
+
 
 
 
@@ -15,6 +17,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    timezone = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
@@ -44,6 +47,9 @@ class Application(Base):
     notes = Column(String, nullable=True)
     job_description = Column(String, nullable=True)
     job_link = Column(String, nullable=True)
+    interview_date_utc = Column(DateTime, nullable=True)
+    interview_timezone = Column(String, nullable=True)
+    follow_up_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     

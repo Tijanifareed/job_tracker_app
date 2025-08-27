@@ -2,8 +2,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
-from app.schemas import AddApplicationRequest, UpdateApplicationRequest
-from app.utils import get_current_user
+from app.schemas import AddApplicationRequest, InterviewDateRequest, UpdateApplicationRequest
+from app.utils import get_current_user, send_mail
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -36,7 +36,7 @@ def add_new_application(
         notes=application_data.notes,
         job_description=application_data.job_description,
         job_link=application_data.job_link,
-        user_id=current_user.id
+        user_id=current_user.id,
     )
     db.add(new_application)
     db.commit()
@@ -80,6 +80,9 @@ def update_application(
     current_user: models.User = Depends(get_current_user),
 ):
     application = db.query(models.Application).filter(models.Application.id == application_id, models.Application.user_id == current_user.id).first()
+    next_action = None
+    if application_data.status == "Interview":
+        next_action = "Set interview date."
     if not application:
         raise HTTPException(status_code=404, detail="No Application to update")
     application.job_title = application_data.job_title or application.job_title
@@ -93,7 +96,8 @@ def update_application(
     db.refresh(application)
     return {
         "message": "Application updated successfully",
-        "application": application
+        "application": application,
+        "next_action": next_action
     }
 
 @router.delete("/my-applications/{application_id}")
@@ -114,3 +118,36 @@ def delete_application(
     db.commit()
     
     return {"message": "Application deleted successfully"}
+
+@router.post("/applications/{id}/set-interview")
+def set_interview_date(
+    id: int,
+    request: InterviewDateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    application = db.query(models.Application).filter(
+        models.Application.id == id,
+        models.Application.user_id == current_user.id
+    ).first()
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if application.status != "interview":
+        raise HTTPException(status_code=400, detail="Cannot set interview date unless status is 'interview'")
+    application.interview_date = request.interview_date    
+    db.commit()
+    db.refresh(application)
+    send_mail(
+        subject="Interview Scheduled",
+        body=f"Your interview for the position of {application.job_title} at {application.company} is scheduled on {application.interview_date}.",
+        to_email=current_user.email
+    )
+    
+    return {
+        "message": "Interview date set successfully A confirmation email has been sent to the mail you used to register.",
+        "application": application
+    }
+    
+    
