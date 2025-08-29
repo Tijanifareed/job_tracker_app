@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import Enum
 
-from app.timezones import TimezoneEnum
+from app.enums.timezones import TimezoneEnum
 
 class UserCreate(BaseModel):
      username: str

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
 from app.schemas import AddResumeRequest
-from app.utils import get_current_user
+from app.utils.utils import get_current_user
 import cloudinary.uploader
 
 

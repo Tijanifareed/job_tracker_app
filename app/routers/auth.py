@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from app import database
 from app.schemas import ForgotPasswordRequest, TimeZoneRequest
-from app.timezones import TimezoneEnum
-from app.utils import get_current_user, send_mail
+from app.enums.timezones import TimezoneEnum
+from app.utils.utils import get_current_user, send_mail
 from datetime import datetime, timedelta
 import os
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import models, database
 from app.schemas import ForgotPasswordRequest, ResetPasswordRequest, UserCreate, UserLogin
 from passlib.hash import bcrypt
-from app.utils import create_access_token, genarate_reset_token, get_current_user, send_mail
+from app.utils.utils import create_access_token, genarate_reset_token, get_current_user, send_mail
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -84,6 +84,7 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
         "Password Reset Code",
         f"Your password reset code is: {code}",
         request.email,
+        html=False
     )
     return {
         "message": "Reset code sent to your email",
@@ -130,12 +131,18 @@ def add_timezone(timezone_request: TimeZoneRequest, current_user: models.User = 
         tz_value = TimezoneEnum[timezone_request.timezone].value
     except KeyError:
         raise HTTPException(status_code=400, detail="Invalid timezone provided")
-    current_user.timezone = tz_value
+    
+    # Re-fetch user from DB to ensure it's attached to the session
+    db_user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db_user.timezone = tz_value
     db.commit()
+    db.refresh(db_user)
    
     return {
         "message": "Timezone added successfully",
-        "timezone": timezone_request.timezone
+        "timezone": db_user.timezone
     }
     
 
