@@ -3,6 +3,7 @@ from app.routers import applications, auth, resume
 from app.database import SessionLocal
 from app.routers.auth import cleanup_expired_reset_codes
 from app.utils.scheduler import start_scheduler, scheduler
+from fastapi.middleware.cors import CORSMiddleware
 
 def scheduled_cleanup():
     db = SessionLocal()
@@ -15,6 +16,22 @@ app.include_router(applications.router)
 app.include_router(resume.router)
 app.include_router(auth.router)
 
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # ✅ allowed origins
+    allow_credentials=True,
+    allow_methods=["*"],    # GET, POST, etc.
+    allow_headers=["*"],    # Authorization, Content-Type, etc.
+)
+
+
 @app.get("/")
 def root():
     return {"message": "Welcome to Job Tracker API 🚀"}
@@ -22,7 +39,7 @@ def root():
 @app.on_event("startup")
 def _startup():
     start_scheduler()
-    scheduler.add_job(scheduled_cleanup, "interval", minutes=10)  # Runs every 10 minutes
+    scheduler.add_job(scheduled_cleanup, "interval", minutes=20)  # Runs every 10 minutes
 
 
 

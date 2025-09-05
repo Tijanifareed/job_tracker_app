@@ -56,6 +56,9 @@ ALIAS_MAP = {
     "ACST": "Australia/Adelaide",
     "ACDT": "Australia/Adelaide",
     "AWST": "Australia/Perth",
+    
+    "AST_ARABIA": "Asia/Riyadh",
+    "CST_CHINA": "Asia/Shanghai",
 }
 def resolve_to_iana(tz_str: str) -> str:
     

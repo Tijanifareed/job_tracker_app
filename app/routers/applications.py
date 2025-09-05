@@ -1,9 +1,13 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app import models, database
-from app.schemas import AddApplicationRequest, InterviewDateRequest, UpdateApplicationRequest
+from app.schemas import AddApplicationRequest, InterviewDateRequest, RecentApplicationResponse, StatsResponse, UpdateApplicationRequest
+from app.utils.time_ago import time_ago
 from app.utils.interview import make_ics, parse_local_datetime, resolve_to_iana, schedule_reminders_for_application
 from app.utils.utils import get_current_user, send_mail
 
@@ -56,7 +60,7 @@ def list_user_applications(
     applications = db.query(models.Application).filter(models.Application.user_id == current_user.id).all()
     if not applications:
         return {"message": "You have no applications."}
-    return {"applications": applications}
+    return {"data": applications}
 
 @router.get("/my-applications/{application_id}")
 def get_application_details(
@@ -72,35 +76,74 @@ def get_application_details(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     
-    return {"application": application}
+    return {"data": application}
 
-@router.put("/my-applications/{application_id}",)
+# @router.put("/my-applications/{application_id}",)
+# def update_application(
+#     application_id: int,
+#     application_data: UpdateApplicationRequest,
+#     db: Session = Depends(get_db),
+#     current_user: models.User = Depends(get_current_user),
+# ):
+#     application = db.query(models.Application).filter(models.Application.id == application_id, models.Application.user_id == current_user.id).first()
+#     next_action = None
+#     if application_data.status == "Interview":
+#         next_action = "Set interview date."
+#     if not application:
+#         raise HTTPException(status_code=404, detail="No Application to update")
+#     application.job_title = application_data.job_title or application.job_title
+#     application.company = application_data.company or application.company
+#     application.status = application_data.status or application.status
+#     application.applied_date = application_data.applied_date or application.applied_date
+#     application.notes = application_data.notes or application.notes
+#     application.job_description = application_data.job_description or application.job_description
+#     application.job_link = application_data.job_link or application.job_link
+#     db.commit()
+#     db.refresh(application)
+#     return {
+#         "message": "Application updated successfully",
+#         "application": application,
+#         "next_action": next_action
+#     }
+
+
+@router.patch("/my-applications/{application_id}")
 def update_application(
     application_id: int,
     application_data: UpdateApplicationRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    application = db.query(models.Application).filter(models.Application.id == application_id, models.Application.user_id == current_user.id).first()
-    next_action = None
-    if application_data.status == "Interview":
-        next_action = "Set interview date."
+    application = (
+        db.query(models.Application)
+        .filter(
+            models.Application.id == application_id,
+            models.Application.user_id == current_user.id
+        )
+        .first()
+    )
     if not application:
         raise HTTPException(status_code=404, detail="No Application to update")
-    application.job_title = application_data.job_title or application.job_title
-    application.company = application_data.company or application.company
-    application.status = application_data.status or application.status
-    application.applied_date = application_data.applied_date or application.applied_date
-    application.notes = application_data.notes or application.notes
-    application.job_description = application_data.job_description or application.job_description
-    application.job_link = application_data.job_link or application.job_link
+
+    update_data = application_data.dict(exclude_unset=True)  # <-- only changed fields
+
+    for field, value in update_data.items():
+        setattr(application, field, value)
+
     db.commit()
     db.refresh(application)
+
+    next_action = None
+    if update_data.get("status") == "Interview":
+        next_action = "Set interview date."
+
     return {
         "message": "Application updated successfully",
         "application": application,
-        "next_action": next_action
+        "next_action": next_action,
     }
+
+
 
 @router.delete("/my-applications/{application_id}")
 def delete_application(
@@ -197,11 +240,77 @@ def set_interview_date(
             "display_time_user_tz": pretty
         }
     }
+    
+    
+@router.get("/search-applications")   
+def search_applications(
+    query: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not query.strip():
+        return []
+    results = db.query(models.Application).filter(
+        models.Application.user_id == current_user.id,
+        (models.Application.job_title.ilike(f"%{query}%")) | 
+        (models.Application.company.ilike(f"%{query}%")) | 
+        (models.Application.notes.ilike(f"%{query}%"))
+    ).all()
+    
+    return {"results": results}
 
+@router.get("/stats", response_model=StatsResponse)
+def all_applications_stats(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    
+    results = (
+        db.query(models.Application.status, func.count(models.Application.id))
+        .filter(models.Application.user_id == current_user.id)
+        .group_by(models.Application.status)
+        .all()
+    )
+    
+    stats = {status.value: count for status, count in results}
     
     
+    return{
+        
+            "data":{
+                "applied": stats.get("Applied", 0),
+                "interview": stats.get("Interview", 0),
+                "offer": stats.get("Offer", 0),
+                "rejected": stats.get("Rejected", 0),
+            } 
+        
+    }
     
     
-   
+@router.get("/recent",  response_model=list[RecentApplicationResponse])
+def recent_appication(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    limit: int = 5,
+):
+    
+    applications = (
+        db.query(models.Application)
+        .filter(models.Application.user_id == current_user.id)
+        .order_by(models.Application.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    
+    return[
+        RecentApplicationResponse(
+            id=app.id,
+            job_title=app.job_title,
+            company_name=app.company,
+            status=app.status.value,  
+            time_ago=time_ago(app.created_at),
+        )
+        for app in applications
+    ]
     
     

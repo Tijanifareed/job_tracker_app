@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from app import database
 from app.schemas import ForgotPasswordRequest, TimeZoneRequest
 from app.enums.timezones import TimezoneEnum
@@ -26,7 +27,10 @@ def get_db():
 @router.post("/create-account")
 def create_account(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        return JSONResponse(
+        status_code=400,
+        content={"status": "error", "message": "Email already registered"}
+    )
     hashed_password = bcrypt.hash(user.password)
     db_user = models.User(
         username=user.username,
@@ -37,33 +41,58 @@ def create_account(user: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    return {
-        "message": "User created successfully",
-        "data":{
-            "user_id": db_user.id,
-            "username": db_user.username,
-            "email": db_user.email
-        }
-        }
     
     
-@router.post("/login-app")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "success",
+            "message": "Account created successfully",
+            "data":{
+                "user_id": db_user.id,
+                "username": db_user.username,
+                "email": db_user.email,
+                "timezone": db_user.timezone,
+            }
+        }
+    )
+    
+    
+@router.post("/login")
 def login_app(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not bcrypt.verify(user.password, db_user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+          return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Invalid Credentials"}
+            )
     access_token = create_access_token(data={"sub": db_user.email})
-    return {
+    return JSONResponse(
+        status_code=200,
+        content={
+        "status": "success",
+        "message": "Login Successfull",
         "data":{
-            "access_token": access_token,
-            "token_type": "bearer"
+            "token": access_token,
+            "token_type": "bearer",
+            "user_id": db_user.id,
+            "username": db_user.username,
+            "email": db_user.email,
+            "timezone": db_user.timezone,
         }
-       }
+        }
+    )
 
 
 @router.get("/me")
-def return_me(current_user: str = Depends(get_current_user)):
-    return {"message": f"Hello, {current_user}. You are authenticated!"}
+def return_me(current_user: models.User = Depends(get_current_user)):
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": f"Hello, {current_user.username}. You are authenticated!",
+            "data": current_user
+        }
+        )
 
 
 reset_code_cache = {}

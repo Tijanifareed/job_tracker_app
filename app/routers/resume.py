@@ -27,7 +27,7 @@ def upload_resume(
 ):
     existing_resumes = db.query(models.Resume).filter(models.Resume.user_id == current_user.id).count()
 
-    if existing_resumes >= 3:
+    if existing_resumes >= 5:
         try:
             cloudinary.uploader.destroy(resume_data.public_id)
         except Exception as e:

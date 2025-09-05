@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Enum
+from sqlalchemy import Column, Index, Integer, String, DateTime, ForeignKey, Boolean, Enum
 from sqlalchemy.orm import relationship
 from app.database import Base
 import datetime
@@ -14,7 +14,7 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
+    username = Column(String(50), unique=False, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     timezone = Column(String, nullable=True)
@@ -27,6 +27,7 @@ class User(Base):
 
     
 class ApplicationStatus(PyEnum):
+    not_applied = "Not Applied"
     applied = "Applied"
     interview = "Interview"
     offer = "Offer"
@@ -41,7 +42,7 @@ class Application(Base):
     job_title = Column(String(255), index=True, nullable=False)
     company = Column(String(255), nullable=False)
     status = Column(Enum(ApplicationStatus, name="applicationstatus"),
-                                         default=ApplicationStatus.applied,
+                                         default=ApplicationStatus.not_applied,
                                          nullable=False)
     applied_date = Column(DateTime, default=datetime.datetime.utcnow)
     notes = Column(String, nullable=True)
@@ -59,6 +60,9 @@ class Application(Base):
     application_timelines = relationship("ApplicationTimeline", back_populates="application", cascade="all, delete-orphan")
     interview_preps = relationship("InterviewPrep", back_populates="application", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        Index("ix_applications_user_id_id", "user_id", "id"),
+    )
 
     
 class AiAnalysis(Base):

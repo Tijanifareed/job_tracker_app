@@ -29,16 +29,17 @@ class AddApplicationRequest(BaseModel):
     applied_date: Optional[datetime] = None
     notes: Optional[str] = None
     job_description: Optional[str] = None
-    job_link: Optional[HttpUrl] = None
+    job_link: str
+    
     
 class UpdateApplicationRequest(BaseModel):
     job_title: Optional[str] = None
     company: Optional[str] = None
     status: Optional[str] = None
-    applied_date: Optional[datetime] = None
+    applied_date: Optional[datetime.datetime] = None
     notes: Optional[str] = None
     job_description: Optional[str] = None
-    job_link: Optional[HttpUrl] = None    
+    job_link: Optional[str] = None    
     
 
      
@@ -60,3 +61,21 @@ class AddResumeRequest(BaseModel):
     
 class TimeZoneRequest(BaseModel):
     timezone: str = TimezoneEnum.UTC    
+    
+class ApplicationStats(BaseModel):
+    applied: int
+    interview: int
+    offer: int
+    rejected: int
+
+class StatsResponse(BaseModel):
+    data: ApplicationStats
+    
+    
+ 
+class RecentApplicationResponse(BaseModel):
+    id: int
+    job_title: str
+    company_name: str
+    status: str
+    time_ago: str       
