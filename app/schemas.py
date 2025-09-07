@@ -31,15 +31,18 @@ class AddApplicationRequest(BaseModel):
     job_description: Optional[str] = None
     job_link: str
     
+
     
 class UpdateApplicationRequest(BaseModel):
     job_title: Optional[str] = None
     company: Optional[str] = None
     status: Optional[str] = None
-    applied_date: Optional[datetime.datetime] = None
+    applied_date: Optional[datetime] = None
     notes: Optional[str] = None
     job_description: Optional[str] = None
     job_link: Optional[str] = None    
+    interview_date: Optional[datetime] = None
+    timezone: Optional[str] = None
     
 
      

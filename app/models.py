@@ -49,6 +49,7 @@ class Application(Base):
     job_description = Column(String, nullable=True)
     job_link = Column(String, nullable=True)
     interview_date_utc = Column(DateTime, nullable=True)
+    interview_date = Column(DateTime, nullable=True)
     interview_timezone = Column(String, nullable=True)
     follow_up_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

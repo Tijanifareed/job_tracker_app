@@ -68,15 +68,34 @@ def get_application_details(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    application = db.query(models.Application).filter(
-        models.Application.id == application_id,
-        models.Application.user_id == current_user.id
-    ).first()
-    
+    application = (
+        db.query(
+            models.Application.id,
+            models.Application.user_id,
+            models.Application.job_title,
+            models.Application.company,
+            models.Application.status,
+            models.Application.applied_date,
+            models.Application.notes,
+            models.Application.job_description,
+            models.Application.job_link,
+            models.Application.interview_date_utc,
+            models.Application.interview_date,
+            models.Application.interview_timezone,
+            models.Application.follow_up_date
+        )
+        .filter(
+            models.Application.id == application_id,
+            models.Application.user_id == current_user.id
+        )
+        .first()
+    )
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     
-    return {"data": application}
+    return {"data": dict(application._mapping)}
+
+
 
 # @router.put("/my-applications/{application_id}",)
 # def update_application(
@@ -182,7 +201,7 @@ def set_interview_date(
     if application.status != models.ApplicationStatus.interview:
         raise HTTPException(status_code=400, detail="Cannot set interview date unless status is 'interview'")
     
-    # 2) Resolve recruiter timezone (either short code like 'EDT' or an IANA string)
+    #2) Resolve recruiter timezone (either short code like 'EDT' or an IANA string)
     try:
         recruiter_iana = resolve_to_iana(request.timezone)
     except ValueError as e:
@@ -196,38 +215,40 @@ def set_interview_date(
         raise HTTPException(status_code=400, detail=f"Invalid date/time: {e}") 
     utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
     
-    application.interview_date_utc = utc_dt
+    # application.interview_date_utc = utc_dt
     application.interview_timezone = recruiter_iana
+    application.interview_date = request.interview_date
+
     db.commit()
     db.refresh(application)
     
-    # 5) Compose display datetime in user's timezone
+    # # 5) Compose display datetime in user's timezone
     user_iana = current_user.timezone or "UTC"
     user_local_dt = utc_dt.astimezone(ZoneInfo(user_iana))
     pretty = user_local_dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
 
-    # 6) Create ICS and send immediate confirmation email (attach ICS)
-    ics_bytes = make_ics(application, local_dt, recruiter_iana, duration_minutes=60)
-    subject = "Interview Scheduled"
-    body = f"""Hello {current_user.username},
-    Your interview for {application.job_title} at {application.company} is scheduled on:
-        📅 {pretty}
+    # # 6) Create ICS and send immediate confirmation email (attach ICS)
+    # ics_bytes = make_ics(application, local_dt, recruiter_iana, duration_minutes=60)
+    # subject = "Interview Scheduled"
+    # body = f"""Hello {current_user.username},
+    # Your interview for {application.job_title} at {application.company} is scheduled on:
+    #     📅 {pretty}
 
-        An invite is attached (you can add it to Google/Apple/Outlook).
+    #     An invite is attached (you can add it to Google/Apple/Outlook).
 
-    Good luck!
-    """
+    # Good luck!
+    # """
     
-    # Here show how your send_mail should accept attachments: adjust to your helper's signature
-    try:
-        send_mail(subject=subject, body=body, to_email=current_user.email,
-                attachments=[("invite.ics", ics_bytes, "text/calendar")])
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")    
+    # # Here show how your send_mail should accept attachments: adjust to your helper's signature
+    # try:
+    #     send_mail(subject=subject, body=body, to_email=current_user.email,
+    #             attachments=[("invite.ics", ics_bytes, "text/calendar")])
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")    
     
     
-     # 7) Schedule reminders (scheduler runs in UTC)
-    schedule_reminders_for_application(application, utc_dt, user_iana)
+    #  # 7) Schedule reminders (scheduler runs in UTC)
+    # schedule_reminders_for_application(application, utc_dt, user_iana)
     
     return {
         "message": "Interview date set successfully. Confirmation email (with .ics) sent.",
