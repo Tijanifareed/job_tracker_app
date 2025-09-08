@@ -42,7 +42,7 @@ class UpdateApplicationRequest(BaseModel):
     job_description: Optional[str] = None
     job_link: Optional[str] = None    
     interview_date: Optional[datetime] = None
-    timezone: Optional[str] = None
+    interview_timezone: Optional[str] = None
     
 
      

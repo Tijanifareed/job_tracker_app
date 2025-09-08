@@ -126,6 +126,42 @@ def get_application_details(
 #     }
 
 
+# @router.patch("/my-applications/{application_id}")
+# def update_application(
+#     application_id: int,
+#     application_data: UpdateApplicationRequest,
+#     db: Session = Depends(get_db),
+#     current_user: models.User = Depends(get_current_user),
+# ):
+#     print(application_data)
+#     application = (
+#         db.query(models.Application)
+#         .filter(
+#             models.Application.id == application_id,
+#             models.Application.user_id == current_user.id
+#         )
+#         .first()
+#     )
+#     if not application:
+#         raise HTTPException(status_code=404, detail="No Application to update")
+
+#     update_data = application_data.dict(exclude_unset=True)  # <-- only changed fields
+
+#     for field, value in update_data.items():
+#         setattr(application, field, value)
+
+#     db.commit()
+#     db.refresh(application)
+
+#     next_action = None
+#     if update_data.get("status") == "Interview":
+#         next_action = "Set interview date."
+
+#     return {
+#         "message": "Application updated successfully",
+#         "application": application,
+#         "next_action": next_action,
+#     }
 @router.patch("/my-applications/{application_id}")
 def update_application(
     application_id: int,
@@ -137,23 +173,50 @@ def update_application(
         db.query(models.Application)
         .filter(
             models.Application.id == application_id,
-            models.Application.user_id == current_user.id
+            models.Application.user_id == current_user.id,
         )
         .first()
     )
     if not application:
         raise HTTPException(status_code=404, detail="No Application to update")
 
-    update_data = application_data.dict(exclude_unset=True)  # <-- only changed fields
+    # helper to extract a string value from enum or string and normalize for comparisons
+    def status_str(raw):
+        if raw is None:
+            return None
+        # if SQLAlchemy Enum object with .value
+        if hasattr(raw, "value"):
+            return str(raw.value)
+        return str(raw)
 
+    def norm(raw):
+        s = status_str(raw)
+        return s.lower() if s is not None else None
+
+    # capture original (pre-update) status
+    old_status_raw = application.status
+    old_status_norm = norm(old_status_raw)
+
+    update_data = application_data.dict(exclude_unset=True)
+
+    # Determine the "new" status after update (if client provided status, use that; otherwise fallback to old)
+    new_status_raw = update_data.get("status", old_status_raw)
+    new_status_norm = norm(new_status_raw)
+
+    # apply updates
     for field, value in update_data.items():
         setattr(application, field, value)
+
+    # If old status was "Interview" and new status is different → clear interview fields
+    if old_status_norm == "interview" and new_status_norm != "interview":
+        application.interview_date = None
+        application.interview_timezone = None
 
     db.commit()
     db.refresh(application)
 
     next_action = None
-    if update_data.get("status") == "Interview":
+    if new_status_norm == "interview":
         next_action = "Set interview date."
 
     return {
