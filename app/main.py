@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import applications, auth, resume
+from app.routers import applications, auth, feedback, resume
 from app.database import SessionLocal
 from app.routers.auth import cleanup_expired_reset_codes
 from app.utils.scheduler import start_scheduler, scheduler
@@ -15,6 +15,8 @@ app = FastAPI(title="Job Tracker API")
 app.include_router(applications.router)
 app.include_router(resume.router)
 app.include_router(auth.router)
+app.include_router(feedback.router, prefix="/ai", tags=["AI Feedback"])
+
 
 
 origins = [
