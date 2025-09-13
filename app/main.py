@@ -12,10 +12,10 @@ def scheduled_cleanup():
 
 
 app = FastAPI(title="Job Tracker API")
+app.include_router(feedback.router)
 app.include_router(applications.router)
 app.include_router(resume.router)
 app.include_router(auth.router)
-app.include_router(feedback.router, prefix="/ai", tags=["AI Feedback"])
 
 
 

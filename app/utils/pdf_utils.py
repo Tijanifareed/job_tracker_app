@@ -1,10 +1,12 @@
 from typing import Optional
+from collections import Counter
 import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
 from io import BytesIO
 from docx import Document
 from app.core.logger import get_logger
+import re
 
 logger = get_logger(__name__)
 
@@ -67,3 +69,29 @@ def extract_resume_text(file_bytes: bytes, content_type: str, filename: str) -> 
     except Exception as e:
         logger.error(f"Resume extraction failed: {e}")
         return ""
+
+
+def extract_keywords(job_description: str, top_n: int = 30) -> list:
+    """
+    Extracts keywords (skills, tools, terms) from JD deterministically.
+    Very simple version using regex + frequency filtering.
+    """
+    # Normalize
+    text = job_description.lower()
+    
+    # Keep only words
+    words = re.findall(r"[a-zA-Z]+", text)
+    
+    # Common stopwords (you can extend this list)
+    stopwords = {"the","and","with","for","a","an","to","of","in","on","at","is","as","by","or","be","from"}
+    
+    # Filter
+    filtered = [w for w in words if w not in stopwords and len(w) > 2]
+    
+    # Count frequency
+    counts = Counter(filtered)
+    
+    # Pick top-N terms
+    keywords = [word for word, _ in counts.most_common(top_n)]
+    
+    return keywords
