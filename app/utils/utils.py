@@ -20,7 +20,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/applications/login-app")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 120
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY")
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 def get_db():
     db = database.SessionLocal()
@@ -45,11 +47,7 @@ def get_db():
 #            )   
          
     
-# from fastapi import Depends, HTTPException, status
-# from fastapi.security import OAuth2PasswordBearer
-# from jose import jwt, JWTError
-# from sqlalchemy.orm import Session
-# from . import models
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -93,6 +91,29 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
      to_encode.update({"exp": expire})
      return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def create_refresh_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+
+
+def refresh_token(refresh_token:  str):
+    try:
+        payload = jwt.decode(refresh_token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+        # optionally check if refresh token is in DB and valid
+        data = {"sub": user_id}
+        access_token = create_access_token(data)
+        new_refresh_token = create_refresh_token(data)
+
+        return {"access_token": access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 
 def genarate_reset_token():

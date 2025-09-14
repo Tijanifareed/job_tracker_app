@@ -28,7 +28,8 @@ def analyze_resume_with_groq(resume_text: str, job_description: str) -> dict:
             {
                "role": "system",
     "content": (
-        "You are an ATS resume scoring assistant. "
+        "You are an professional ATS resume scoring assistant. "
+        "You are to think step by step"
         "Your job is to always return a structured JSON object ONLY, in this format:\n"
         "{\n"
         '  "ats_score": <int 0-100>,\n'
@@ -42,7 +43,7 @@ def analyze_resume_with_groq(resume_text: str, job_description: str) -> dict:
         "2. ats_score is the overall fit (skills, formatting, clarity, seniority match).\n"
         "3. keyword_match_score is strictly based on the % of JD keywords found in the resume. "
         "Do not invent or omit keywords.\n"
-        "4. missing_keywords must always be an exhaustive list of terms from the JD that are NOT clearly found in the resume. "
+        "4. missing_keywords must always be an exhaustive list of terms from the JD that are NOT clearly found in the resume and note: you must return all missing keywords. "
         "Never output an empty list unless the resume matches 100% of the JD.\n"
         "5. suggestions must be 4–10 short, plain-language tips that even a beginner job seeker can follow. "
         "Examples: \"Add more of the required keywords\", \"Show achievements with numbers\", "

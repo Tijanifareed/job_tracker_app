@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from jose import JWTError
 from app import database
-from app.schemas import ForgotPasswordRequest, TimeZoneRequest
+from app.schemas import ForgotPasswordRequest, RefreshRequest, TimeZoneRequest, TokenResponse
 from app.enums.timezones import TimezoneEnum
-from app.utils.utils import get_current_user, send_mail
+from app.utils.utils import create_refresh_token, get_current_user, refresh_token, send_mail
 from datetime import datetime, timedelta
 import os
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,7 +23,6 @@ def get_db():
     finally:
         db.close()
         
-
 
 @router.post("/create-account")
 def create_account(user: UserCreate, db: Session = Depends(get_db)):
@@ -66,14 +66,18 @@ def login_app(user: UserLogin, db: Session = Depends(get_db)):
                 status_code=400,
                 content={"status": "error", "message": "Invalid Credentials"}
             )
-    access_token = create_access_token(data={"sub": db_user.email})
+    data={"sub": str(db_user.id)}      
+    access_token = create_access_token(data)
+    refresh_token = create_refresh_token(data)
+    
     return JSONResponse(
         status_code=200,
         content={
         "status": "success",
         "message": "Login Successfull",
         "data":{
-            "token": access_token,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "user_id": db_user.id,
             "username": db_user.username,
@@ -83,6 +87,9 @@ def login_app(user: UserLogin, db: Session = Depends(get_db)):
         }
     )
 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token_endpoint(body: RefreshRequest):
+    return refresh_token(body.refresh_token)
 
 @router.get("/me")
 def return_me(current_user: models.User = Depends(get_current_user)):
