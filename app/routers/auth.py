@@ -24,6 +24,7 @@ def get_db():
         db.close()
         
 
+
 @router.post("/create-account")
 def create_account(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
@@ -69,16 +70,16 @@ def login_app(user: UserLogin, db: Session = Depends(get_db)):
     data={"sub": str(db_user.id)}      
     access_token = create_access_token(data)
     refresh_token = create_refresh_token(data)
-    
     return JSONResponse(
         status_code=200,
         content={
         "status": "success",
         "message": "Login Successfull",
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
         "data":{
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
+            
             "user_id": db_user.id,
             "username": db_user.username,
             "email": db_user.email,
@@ -90,6 +91,7 @@ def login_app(user: UserLogin, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token_endpoint(body: RefreshRequest):
     return refresh_token(body.refresh_token)
+
 
 @router.get("/me")
 def return_me(current_user: models.User = Depends(get_current_user)):

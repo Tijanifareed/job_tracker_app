@@ -57,16 +57,16 @@ def get_current_user(
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
+        id: str = payload.get("sub")
 
-        if email is None:
+        if id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        user = db.query(models.User).filter(models.User.email == email).first()
+        user = db.query(models.User).filter(models.User.id == int(id)).first()
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

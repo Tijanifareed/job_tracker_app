@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -97,71 +98,6 @@ def get_application_details(
 
 
 
-# @router.put("/my-applications/{application_id}",)
-# def update_application(
-#     application_id: int,
-#     application_data: UpdateApplicationRequest,
-#     db: Session = Depends(get_db),
-#     current_user: models.User = Depends(get_current_user),
-# ):
-#     application = db.query(models.Application).filter(models.Application.id == application_id, models.Application.user_id == current_user.id).first()
-#     next_action = None
-#     if application_data.status == "Interview":
-#         next_action = "Set interview date."
-#     if not application:
-#         raise HTTPException(status_code=404, detail="No Application to update")
-#     application.job_title = application_data.job_title or application.job_title
-#     application.company = application_data.company or application.company
-#     application.status = application_data.status or application.status
-#     application.applied_date = application_data.applied_date or application.applied_date
-#     application.notes = application_data.notes or application.notes
-#     application.job_description = application_data.job_description or application.job_description
-#     application.job_link = application_data.job_link or application.job_link
-#     db.commit()
-#     db.refresh(application)
-#     return {
-#         "message": "Application updated successfully",
-#         "application": application,
-#         "next_action": next_action
-#     }
-
-
-# @router.patch("/my-applications/{application_id}")
-# def update_application(
-#     application_id: int,
-#     application_data: UpdateApplicationRequest,
-#     db: Session = Depends(get_db),
-#     current_user: models.User = Depends(get_current_user),
-# ):
-#     print(application_data)
-#     application = (
-#         db.query(models.Application)
-#         .filter(
-#             models.Application.id == application_id,
-#             models.Application.user_id == current_user.id
-#         )
-#         .first()
-#     )
-#     if not application:
-#         raise HTTPException(status_code=404, detail="No Application to update")
-
-#     update_data = application_data.dict(exclude_unset=True)  # <-- only changed fields
-
-#     for field, value in update_data.items():
-#         setattr(application, field, value)
-
-#     db.commit()
-#     db.refresh(application)
-
-#     next_action = None
-#     if update_data.get("status") == "Interview":
-#         next_action = "Set interview date."
-
-#     return {
-#         "message": "Application updated successfully",
-#         "application": application,
-#         "next_action": next_action,
-#     }
 @router.patch("/my-applications/{application_id}")
 def update_application(
     application_id: int,
@@ -246,84 +182,148 @@ def delete_application(
     
     return {"message": "Application deleted successfully"}
 
-@router.post("/applications/{id}/set-interview")
+# @router.post("/{id}/set-interview")
+# def set_interview_date(
+#     id: int,
+#     request: InterviewDateRequest,
+#     db: Session = Depends(get_db),
+#     current_user: models.User = Depends(get_current_user),
+# ):
+#     application = db.query(models.Application).filter(
+#         models.Application.id == id,
+#         models.Application.user_id == current_user.id
+#     ).first()
+    
+#     if not application:
+#         raise HTTPException(status_code=404, detail="Application not found")
+    
+#     if application.status != models.ApplicationStatus.interview:
+#         raise HTTPException(status_code=400, detail="Cannot set interview date unless status is 'interview'")
+    
+#     #2) Resolve recruiter timezone (either short code like 'EDT' or an IANA string)
+#     try:
+#         recruiter_iana = resolve_to_iana(request.timezone)
+#     except ValueError as e:
+#         raise HTTPException(status_code=400, detail=str(e))   
+    
+        
+#     # 3) Parse date/time in recruiter tz and convert to UTC    
+#     try:
+#         local_dt = parse_local_datetime(request.interview_date, recruiter_iana) 
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=f"Invalid date/time: {e}") 
+#     utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
+    
+#     # application.interview_date_utc = utc_dt
+#     application.interview_timezone = recruiter_iana
+#     application.interview_date = request.interview_date
+
+#     db.commit()
+#     db.refresh(application)
+    
+#     # # 5) Compose display datetime in user's timezone
+#     user_iana = current_user.timezone or "UTC"
+#     user_local_dt = utc_dt.astimezone(ZoneInfo(user_iana))
+#     pretty = user_local_dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+
+#     # # 6) Create ICS and send immediate confirmation email (attach ICS)
+#     # ics_bytes = make_ics(application, local_dt, recruiter_iana, duration_minutes=60)
+#     # subject = "Interview Scheduled"
+#     # body = f"""Hello {current_user.username},
+#     # Your interview for {application.job_title} at {application.company} is scheduled on:
+#     #     📅 {pretty}
+
+#     #     An invite is attached (you can add it to Google/Apple/Outlook).
+
+#     # Good luck!
+#     # """
+    
+#     # # Here show how your send_mail should accept attachments: adjust to your helper's signature
+#     # try:
+#     #     send_mail(subject=subject, body=body, to_email=current_user.email,
+#     #             attachments=[("invite.ics", ics_bytes, "text/calendar")])
+#     # except Exception as e:
+#     #     raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")    
+    
+    
+#     #  # 7) Schedule reminders (scheduler runs in UTC)
+#     # schedule_reminders_for_application(application, utc_dt, user_iana)
+    
+#     return {
+#         "message": "Interview date set successfully. Confirmation email (with .ics) sent.",
+#         "application": {
+#             "id": application.id,
+#             "job_title": application.job_title,
+#             "company": application.company,
+#             "interview_date_utc": utc_dt.isoformat(),
+#             "interview_timezone": application.interview_timezone,
+#             "display_time_user_tz": pretty
+#         }
+#     }
+
+
+@router.post("/{id}/set-interview")
 def set_interview_date(
     id: int,
     request: InterviewDateRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    application = db.query(models.Application).filter(
-        models.Application.id == id,
-        models.Application.user_id == current_user.id
-    ).first()
-    
+    application = (
+        db.query(models.Application)
+        .filter(
+            models.Application.id == id,
+            models.Application.user_id == current_user.id,
+        )
+        .first()
+    )
+
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    
+
     if application.status != models.ApplicationStatus.interview:
-        raise HTTPException(status_code=400, detail="Cannot set interview date unless status is 'interview'")
-    
-    #2) Resolve recruiter timezone (either short code like 'EDT' or an IANA string)
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot set interview date unless status is 'interview'",
+        )
+
+    # 1) Resolve timezone
     try:
         recruiter_iana = resolve_to_iana(request.timezone)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))   
-    
-        
-    # 3) Parse date/time in recruiter tz and convert to UTC    
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2) Parse recruiter-local datetime
     try:
-        local_dt = parse_local_datetime(request.interview_date, recruiter_iana) 
+        local_dt = parse_local_datetime(request.interview_date, recruiter_iana)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time: {e}") 
+        raise HTTPException(status_code=400, detail=f"Invalid date/time: {e}")
+
+    # 3) Convert to UTC
+    # utc_dt = local_dt.astimezone(datetime.timezone.utc)
     utc_dt = local_dt.astimezone(ZoneInfo("UTC"))
-    
-    # application.interview_date_utc = utc_dt
+
+
+    # ✅ Save both
+    application.interview_date = request.interview_date  # recruiter-local datetime
     application.interview_timezone = recruiter_iana
-    application.interview_date = request.interview_date
+    application.interview_date_utc = utc_dt
 
     db.commit()
     db.refresh(application)
-    
-    # # 5) Compose display datetime in user's timezone
-    user_iana = current_user.timezone or "UTC"
-    user_local_dt = utc_dt.astimezone(ZoneInfo(user_iana))
-    pretty = user_local_dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
 
-    # # 6) Create ICS and send immediate confirmation email (attach ICS)
-    # ics_bytes = make_ics(application, local_dt, recruiter_iana, duration_minutes=60)
-    # subject = "Interview Scheduled"
-    # body = f"""Hello {current_user.username},
-    # Your interview for {application.job_title} at {application.company} is scheduled on:
-    #     📅 {pretty}
-
-    #     An invite is attached (you can add it to Google/Apple/Outlook).
-
-    # Good luck!
-    # """
-    
-    # # Here show how your send_mail should accept attachments: adjust to your helper's signature
-    # try:
-    #     send_mail(subject=subject, body=body, to_email=current_user.email,
-    #             attachments=[("invite.ics", ics_bytes, "text/calendar")])
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")    
-    
-    
-    #  # 7) Schedule reminders (scheduler runs in UTC)
-    # schedule_reminders_for_application(application, utc_dt, user_iana)
-    
     return {
-        "message": "Interview date set successfully. Confirmation email (with .ics) sent.",
+        "message": "Interview date set successfully.",
         "application": {
             "id": application.id,
             "job_title": application.job_title,
             "company": application.company,
-            "interview_date_utc": utc_dt.isoformat(),
-            "interview_timezone": application.interview_timezone,
-            "display_time_user_tz": pretty
-        }
+            "interview_date": application.interview_date.isoformat(),
+            "interview_date_utc": application.interview_date_utc.isoformat(),
+            "timezone": recruiter_iana,
+        },
     }
+
     
     
 @router.get("/search-applications")   
@@ -397,4 +397,40 @@ def recent_appication(
         for app in applications
     ]
     
-    
+@router.get("/upcoming-interview")
+def get_upcoming_interview(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # ✅ timezone-aware "now" in UTC
+    now_utc = datetime.now(timezone.utc)
+
+    upcoming = (
+        db.query(models.Application)
+        .filter(
+            models.Application.user_id == current_user.id,
+            models.Application.interview_date_utc != None,
+            models.Application.interview_date_utc > now_utc,  # ✅ both aware now
+        )
+        .order_by(models.Application.interview_date_utc.asc())
+        .first()
+    )
+
+    if not upcoming:
+        return {"message": None}
+
+    # Display in user's timezone
+    user_tz = current_user.timezone or upcoming.interview_timezone or "UTC"
+    dt_local = upcoming.interview_date_utc.astimezone(ZoneInfo(user_tz))
+    pretty = dt_local.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+
+    return {
+        "message": f"Your upcoming interview at {upcoming.company}: {pretty} 🗓️",
+        "application_id": upcoming.id,
+        "job_title": upcoming.job_title,
+        "company": upcoming.company,
+        "interview_date": upcoming.interview_date.isoformat(),
+        "interview_date_utc": upcoming.interview_date_utc.isoformat(),
+        "timezone": upcoming.interview_timezone,
+        "display_time": pretty,
+    }
