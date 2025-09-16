@@ -5,6 +5,8 @@ from app.core.logger import get_logger
 from app.utils.pdf_utils import extract_keywords, extract_resume_text
 from app.utils.utils import get_current_user
 import io
+import re
+
 
 router = APIRouter(prefix="/ai", tags=["Feedback"])
 
@@ -102,3 +104,5 @@ async def analyze_resume(
     except Exception as e:
         logger.exception("Resume analysis failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
