@@ -44,6 +44,11 @@ class UpdateApplicationRequest(BaseModel):
     interview_date: Optional[datetime] = None
     interview_timezone: Optional[str] = None
     
+class ProfileUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    timezone: Optional[str] = None
+    
 
      
 class InterviewDateRequest(BaseModel):
@@ -91,3 +96,13 @@ class TokenResponse(BaseModel):
     
 class RefreshRequest(BaseModel):
     refresh_token: str        
+    
+    
+    
+class ResetPasswordRequest(BaseModel):
+    token: str       
+    email: str 
+        
+class ChangePasswordRequest(BaseModel):
+    email: str
+    new_password: str        

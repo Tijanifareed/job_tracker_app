@@ -2,6 +2,8 @@
 import os
 from dotenv import load_dotenv
 import cloudinary
+import cloudinary.uploader
+
 
 load_dotenv()  # loads .env file
 

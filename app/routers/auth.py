@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from jose import JWTError
 from app import database
-from app.schemas import ForgotPasswordRequest, RefreshRequest, TimeZoneRequest, TokenResponse
+from app.schemas import ChangePasswordRequest, ForgotPasswordRequest, RefreshRequest, TimeZoneRequest, TokenResponse
 from app.enums.timezones import TimezoneEnum
 from app.utils.utils import create_refresh_token, get_current_user, refresh_token, send_mail
 from datetime import datetime, timedelta
-import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database
@@ -84,6 +82,7 @@ def login_app(user: UserLogin, db: Session = Depends(get_db)):
             "username": db_user.username,
             "email": db_user.email,
             "timezone": db_user.timezone,
+            "profile_picture": db_user.profile_picture
         }
         }
     )
@@ -131,13 +130,13 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
     
 
 @router.post("/verify-reset-code")
-def verify_reset_code(token: str, email: str, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == email).first()
+def verify_reset_code(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Email not Registered")
     reset_entry = db.query(models.PasswordReset).filter(
         models.PasswordReset.user_id == db_user.id,
-        models.PasswordReset.code == token,
+        models.PasswordReset.code == request.token,
         models.PasswordReset.expires_at > datetime.utcnow()
     ).first()
     if not reset_entry:
@@ -149,7 +148,7 @@ def verify_reset_code(token: str, email: str, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-password")
-def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(request: ChangePasswordRequest, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Email not Registered")
