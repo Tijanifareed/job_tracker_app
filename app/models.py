@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 import datetime
 from enum import Enum as PyEnum
-
 from app.enums.timezones import TimezoneEnum
 
 

@@ -1,5 +1,4 @@
 from enum import Enum
-
 class TimezoneEnum(str, Enum):
     WAT = "Africa/Lagos"          # West Africa Time
     CAT = "Africa/Harare"         # Central Africa Time
