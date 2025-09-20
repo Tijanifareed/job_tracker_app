@@ -11,6 +11,7 @@ from app import models, database
 from app.schemas import ForgotPasswordRequest, ResetPasswordRequest, UserCreate, UserLogin
 from passlib.hash import bcrypt
 from app.utils.utils import create_access_token, genarate_reset_token, get_current_user, send_mail
+import logging
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -183,8 +184,23 @@ def add_timezone(timezone_request: TimeZoneRequest, current_user: models.User = 
     }
     
 
+# def cleanup_expired_reset_codes(db: Session):
+#     db.query(models.PasswordReset).filter(
+#         models.PasswordReset.expires_at < datetime.utcnow()
+#     ).delete()
+#     db.commit()        
+
+
+
+
 def cleanup_expired_reset_codes(db: Session):
-    db.query(models.PasswordReset).filter(
-        models.PasswordReset.expires_at < datetime.utcnow()
-    ).delete()
-    db.commit()        
+    try:
+        deleted = db.query(models.PasswordReset).filter(
+            models.PasswordReset.expires_at < datetime.utcnow()
+        ).delete(synchronize_session=False)
+        db.commit()
+        logging.info(f"✅ Cleanup ran: deleted {deleted} expired reset codes")
+    except Exception as e:
+        db.rollback()
+        logging.error(f"❌ Cleanup failed: {e}")
+
